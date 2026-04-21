@@ -1,0 +1,45 @@
+;***************************************************
+; Title     : Deserializer for 10BASE-T (4x oversample)
+; Date      : 2026/04/08
+; Design    : Pico-10BASE-T
+; Note      : Continuously samples input pin at 40 MHz
+;             (4x 10 MHz Manchester symbol rate).
+;             Autopush fills RX FIFO with 32-bit words.
+;             Input pin: comparator output (single-ended).
+;***************************************************
+
+.program rx_10base_t
+
+.wrap_target
+    in pins, 1      ; Sample input pin, shift into ISR (1 cycle = 25ns at 40MHz)
+.wrap
+
+% c-sdk {
+
+    #include "hardware/clocks.h"
+
+    static inline void rx_10base_t_program_init(PIO pio, uint sm, uint offset, uint pin_rx)
+    {
+        pio_gpio_init(pio, pin_rx);
+        pio_sm_set_consecutive_pindirs(pio, sm, pin_rx, 1, false);  // Input
+
+        pio_sm_config c = rx_10base_t_program_get_default_config(offset);
+
+        sm_config_set_in_pins(&c, pin_rx);
+        sm_config_set_jmp_pin(&c, pin_rx);
+
+        // Shift left, autopush at 32 bits
+        sm_config_set_in_shift(&c, false, true, 32);
+
+        // Join FIFOs for RX (8-deep instead of 4)
+        sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+        // Set 40 MHz (4x oversample of 10 MHz Manchester rate)
+        float div = (float)clock_get_hz(clk_sys) / (40 * 1000000);
+        sm_config_set_clkdiv(&c, div);
+
+        pio_sm_init(pio, sm, offset, &c);
+        pio_sm_set_enabled(pio, sm, true);
+    }
+
+%}
