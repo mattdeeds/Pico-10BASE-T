@@ -86,9 +86,10 @@ sudo ip addr add 192.168.37.19/24 dev <iface>
 - [Niccle](https://github.com/timonvo/niccle) — the RS-485-transceiver receive
   circuit and software Manchester-decode approach the RX path is based on.
 
-A Rust rewrite of this project also exists — targeting the RP2350 Hazard3 RISC-V
-cores with a [smoltcp](https://github.com/smoltcp-rs/smoltcp) IP stack, IRQ-driven
-multicore RX, and a cyw43 wireless-router mode.
+A [Rust rewrite of this project](https://github.com/mattdeeds/pico-10base-t-rs)
+also exists — targeting the RP2350 Hazard3 RISC-V cores with a
+[smoltcp](https://github.com/smoltcp-rs/smoltcp) IP stack, IRQ-driven multicore RX,
+and a cyw43 wireless-router mode.
 
 ## License
 
