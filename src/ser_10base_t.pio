@@ -5,14 +5,15 @@
 ;***************************************************
 
 .program ser_10base_t
-.side_set 2
+.side_set 1
 .origin 0
 
-;clk 20MHz, input 2bit
+; Single-ended Manchester drive into ISL3177E DI (one MCU pin).
+; clk 20MHz, input 2 bits = 1 Manchester half-bit period (50ns).
 .wrap_target
-    out pc, 2  side 0b00    ; IDLE
-    out pc, 2  side 0b01    ; LOW
-    out pc, 2  side 0b10    ; HIGH
+    out pc, 2  side 0    ; IDLE (DI low — line settles to zero through AC caps)
+    out pc, 2  side 0    ; LOW half-bit (DI=0 → ISL drives line negative differential)
+    out pc, 2  side 1    ; HIGH half-bit (DI=1 → ISL drives line positive differential)
 .wrap
 
 % c-sdk {
@@ -21,10 +22,9 @@
 
     static inline void ser_10base_t_program_init(PIO pio, uint sm, uint offset, uint pin_tx)
     {
-        pio_sm_set_pins_with_mask(pio, sm, 2u << pin_tx, 3u << pin_tx);
-        pio_sm_set_pindirs_with_mask(pio, sm, ~0u, 3u << pin_tx);
+        pio_sm_set_pins_with_mask(pio, sm, 0u, 1u << pin_tx);
+        pio_sm_set_pindirs_with_mask(pio, sm, ~0u, 1u << pin_tx);
         pio_gpio_init(pio, pin_tx);
-        pio_gpio_init(pio, pin_tx + 1);
 
         pio_sm_config c = ser_10base_t_program_get_default_config(offset);
         sm_config_set_out_shift(&c, true, true, 32);   // Shift OSR to Right, Autopull is Enable

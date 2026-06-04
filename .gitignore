@@ -1,2 +1,8 @@
 .vscode
 build/
+
+# Internal dev notes and vendor docs — not for publication
+CLAUDE.md
+RESUME.md
+docs/
+doc/*.pdf

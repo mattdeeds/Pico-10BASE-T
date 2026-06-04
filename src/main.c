@@ -1,22 +1,31 @@
 /********************************************************
 * Title    : Pico-10BASE-T Sample
 * Date     : 2022/08/22
-* Note     : GP16 TX -
-             GP17 TX +
+* Note     : GP14 TX -
+             GP15 TX +
+             GP13 RX  (comparator output)
 * Design   : kingyo
 ********************************************************/
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
 #include "udp.h"
+#include "eth_rx.h"
 #include <stdio.h>
 
-#define HW_PINNUM_TXD       (16)        // 10BASE-T TX- Pin. The TX+ pin is the number plus one.
+#define HW_PINNUM_TXD       (14)        // 10BASE-T TX (ISL3177E DI) Pin.
+#define HW_PINNUM_RXD       (13)        // 10BASE-T RX (ISL3177E RO) Pin.
 #define HW_PINNUM_LED0      (25)        // Pico onboard LED
 #define DEF_TX_INTERVAL_US  (200000)    // Dummy Data TX interval
 
 
 static struct repeating_timer timer;
+
+static volatile uint32_t rx_edge_count = 0;
+
+static void rx_gpio_callback(uint gpio, uint32_t events) {
+    if (gpio == HW_PINNUM_RXD) rx_edge_count++;
+}
 
 // Timer interrupt (L-tika)
 static bool repeating_timer_callback(struct repeating_timer *t) {
@@ -49,12 +58,22 @@ int main() {
     gpio_set_dir(HW_PINNUM_LED0, GPIO_OUT);
     add_repeating_timer_ms(-500, repeating_timer_callback, NULL, &timer);
 
+    // RX pin: count edges from comparator output (kept for sanity check during Phase 2a)
+    gpio_init(HW_PINNUM_RXD);
+    gpio_set_dir(HW_PINNUM_RXD, GPIO_IN);
+    gpio_set_irq_enabled_with_callback(HW_PINNUM_RXD,
+        GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &rx_gpio_callback);
+
+    // RX sampler: PIO0 SM1 (SM0 is used by TX) drives DMA into eth_rx_buf.
+    eth_rx_init(pio0, 1, HW_PINNUM_RXD);
+
 
     // Wait for Link up....
     for (uint32_t i = 0; i < 200;) {
         if (udp_send_nlp()) i++;
     }
 
+    uint32_t time_dump = time_us_32();
 
     // Main loop
     // Send packets every about 200ms.
@@ -72,9 +91,11 @@ int main() {
             udp_send_packet(tx_buf_udp);
         }
 
-
-        /****  Put your code here ****/
-
+        // Phase 2: every 1 s, find a frame, decode it, verify CRC.
+        if ((time_now - time_dump) > 1000000) {
+            time_dump = time_now;
+            eth_rx_decode_frame();
+        }
     }
 
 }

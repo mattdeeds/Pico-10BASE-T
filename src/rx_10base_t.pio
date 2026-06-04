@@ -1,0 +1,36 @@
+;***************************************************
+; Title  : 10BASE-T RX sampler
+; Note   : Samples a single GPIO at the PIO clock rate
+;          and auto-pushes 32-bit words to the RX FIFO.
+;          Configure clkdiv for desired sample rate.
+;***************************************************
+
+.program rx_10base_t
+
+.wrap_target
+    in pins, 1
+.wrap
+
+% c-sdk {
+
+#include "hardware/clocks.h"
+
+static inline void rx_10base_t_program_init(PIO pio, uint sm, uint offset,
+                                            uint pin_rx, uint32_t sample_hz)
+{
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_rx, 1, false);
+
+    pio_sm_config c = rx_10base_t_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pin_rx);
+    // Shift right: first sample taken ends up in bit 0 of each pushed word.
+    sm_config_set_in_shift(&c, true, true, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    float div = (float)clock_get_hz(clk_sys) / (float)sample_hz;
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}
